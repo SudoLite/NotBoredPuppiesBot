@@ -57,8 +57,7 @@ class Tapper:
 
             auth_url = web_view.url
             tg_web_data = unquote(
-                string=unquote(
-                    string=auth_url.split('tgWebAppData=', maxsplit=1)[1].split('&tgWebAppVersion', maxsplit=1)[0]))
+                string=auth_url.split('tgWebAppData=', maxsplit=1)[1].split('&tgWebAppVersion', maxsplit=1)[0])
 
             if self.tg_client.is_connected:
                 await self.tg_client.disconnect()
