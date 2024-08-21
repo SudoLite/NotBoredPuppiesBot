@@ -5,6 +5,7 @@ from random import randint
 from urllib.parse import urlparse, parse_qs, unquote
 
 import aiohttp
+#from aiocfscrape import CloudflareScraper
 from aiohttp_proxy import ProxyConnector
 from better_proxy import Proxy
 from pyrogram import Client
@@ -159,6 +160,18 @@ class Tapper:
             logger.error(f"{self.session_name} | Unknown error when getting Profile Data: {error}")
             await asyncio.sleep(delay=3)
 
+    async def get_spin_result(self, http_client: aiohttp.ClientSession) -> dict[str]:
+        try:
+            response = await http_client.get('https://topcoin-backend-prod.router9.live/api/getSpinResult')
+            response.raise_for_status()
+
+            response_json = await response.json()
+
+            return response_json
+        except Exception as error:
+            logger.error(f"{self.session_name} | Unknown error when getting Spin Data: {error}")
+            await asyncio.sleep(delay=3)
+
     async def apply_boost(self, http_client: aiohttp.ClientSession, boost_type: str) -> bool:
         response_text = ''
         try:
@@ -287,7 +300,6 @@ class Tapper:
                             for mission in profile_data['missions']:
                                 m_id = mission["id"]
                                 m_title = mission["name"]
-                                m_reward = mission["reward"]
 
                                 if mission["status"] == 0:
                                     resp = await self.task_handler(http_client=http_client, id=m_id, task_type='startMission')
@@ -309,6 +321,7 @@ class Tapper:
                                 if mission["status"] == 1:
                                     for task in mission['tasks']:
                                         t_id = task['id']
+                                        t_reward = task['reward']
                                         if task['status'] in [0, 1]:
                                             if task['status'] == 0:
                                                 resp = await self.task_handler(http_client=http_client, id=t_id, task_type='startTask')
@@ -332,7 +345,7 @@ class Tapper:
                                     resp = await self.task_handler(http_client=http_client, id=m_id, task_type='finishMission')
                                     if resp['status'] == 'ok':
                                         logger.success(f"{self.session_name} | Successful Claim Mission | "
-                                                f"Task Title: <c>{m_title}</c> (<g>+{m_reward:,}</g>)")
+                                                f"Task Title: <c>{m_title}</c> (<g>+{t_reward:,}</g>)")
                                         continue
 
                             if data_list:
@@ -341,11 +354,22 @@ class Tapper:
                                     logger.success(f"{self.session_name} | Successful Joined all bots and chats")
 
                         balance = profile_data['balance']
+                        spins = profile_data['spins']
 
-                        league = profile_data['leaguesTasks'][0]
-                        status = await self.claim_league_reward(http_client=http_client, league=league)
-                        if status:
-                            logger.success(f"{self.session_name} | Successfully claim league <m>{league}</m> reward: (<g>+{leagues_data[league]}</g>)")
+                        if profile_data['leaguesTasks']:
+                            league = profile_data['leaguesTasks'][0]
+                            status = await self.claim_league_reward(http_client=http_client, league=league)
+                            if status:
+                                logger.success(f"{self.session_name} | Successfully claim league <m>{league}</m> reward: (<g>+{leagues_data[league]}</g>)")
+
+                        if spins > 0:
+                            logger.info(f"{self.session_name} | You have <m>{spins}</m> spins")
+                            while spins > 0:
+                                spinResult = await self.get_spin_result(http_client=http_client)
+                                if spinResult:
+                                    logger.success(f"{self.session_name} | Successfully claim spins <m>{spinResult['item']}</m> reward: (<g>+{spinResult['amount']}</g>) | next claim in 3 sec")
+                                    spins -= 1
+                                    await asyncio.sleep(delay=3)
 
                         tap_prices = {index + 1: data['price'] for index, data in
                                     enumerate(levels_data['conf']['tap_levels'])}
